@@ -1,15 +1,15 @@
 ### C XML Parser
 
-A C XML parser using libexpat. Nested XML elements are flattened into dotted-path keys (`config.stage`) in a flat array.
+A C XML parser using libexpat. Nested XML elements are flattened into (`config.stage`) keys in a flat array.
 
 #### Commands
 
 ```bash
 ./compile            # Build with CMake (creates build/ if needed)
-./test               # Run Unity tests (must compile first)
-./check              # Compile + valgrind memory check + run tests
+./check              # Compile + valgrind memory check + run Unity tests
+./test               # Run Unity tests
 ./memcheck           # Run valgrind on the parser binary
-./parse <file.xml>   # Parse a file from configs/ (e.g. ./parse test.xml)
+./parse <file.xml>   # Parse a file from configs/ (./parse test.xml)
 ```
 
 Requirements: `gcc`, `CMake`, `valgrind`.

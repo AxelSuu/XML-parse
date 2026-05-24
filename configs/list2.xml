@@ -1,0 +1,10 @@
+<users>
+    <user age="30">
+        <name>Alice</name>
+        <email>alice@example.com</email>
+    </user>
+    <user age="20">
+        <name>Axel</name>
+        <email>axel@example.com</email>
+    </user>
+</users>

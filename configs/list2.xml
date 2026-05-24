@@ -2,9 +2,16 @@
     <user age="30">
         <name>Alice</name>
         <email>alice@example.com</email>
+        <role>admin</role>
     </user>
     <user age="20">
         <name>Axel</name>
         <email>axel@example.com</email>
+        <role>developer</role>
+    </user>
+    <user age="25">
+        <name>Bob</name>
+        <email>bob@example.com</email>
+        <role>viewer</role>
     </user>
 </users>

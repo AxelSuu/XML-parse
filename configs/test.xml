@@ -1,0 +1,4 @@
+<config>
+  <stage>test</stage>
+  <script>echo "This is a test"</script>
+</config>

@@ -1,0 +1,4 @@
+#!/bin/bash
+
+cd build
+./xml_parser ../configs/$1

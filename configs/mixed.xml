@@ -1,0 +1,6 @@
+<mixed>
+  <top>hello</top>
+  <nest>
+    <key>world</key>
+  </nest>
+</mixed>

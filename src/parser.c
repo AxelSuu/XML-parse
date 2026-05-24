@@ -8,6 +8,8 @@
 
 typedef struct {
     XmlMap *out;
+    int     effective_capacity;
+    bool    overflow;
     char path_stack[MAX_DEPTH][MAX_KEY_LEN];
     int  path_index[MAX_DEPTH];
     char sibling_name[MAX_DEPTH][MAX_KEY_LEN];
@@ -38,17 +40,21 @@ static void build_dotted_key(const ParseState *s, int depth, char *out_key)
     out_key[pos] = '\0';
 }
 
-static void store_entry(XmlMap *map, const char *key, const char *value)
+/* Returns 0 on success, -1 if the capacity limit was hit (sets s->overflow). */
+static int store_entry(ParseState *s, const char *key, const char *value)
 {
-    if (map->count >= MAX_ENTRIES) {
-        fprintf(stderr, "Warning: MAX_ENTRIES (%d) reached, entry dropped\n", MAX_ENTRIES);
-        return;
+    if (s->overflow)
+        return -1;
+    if (s->out->count >= s->effective_capacity) {
+        s->overflow = true;
+        return -1;
     }
-    strncpy(map->entries[map->count].key,   key,   MAX_KEY_LEN - 1);
-    strncpy(map->entries[map->count].value, value, MAX_VAL_LEN - 1);
-    map->entries[map->count].key[MAX_KEY_LEN - 1]   = '\0';
-    map->entries[map->count].value[MAX_VAL_LEN - 1] = '\0';
-    map->count++;
+    strncpy(s->out->entries[s->out->count].key,   key,   MAX_KEY_LEN - 1);
+    strncpy(s->out->entries[s->out->count].value, value, MAX_VAL_LEN - 1);
+    s->out->entries[s->out->count].key[MAX_KEY_LEN - 1]   = '\0';
+    s->out->entries[s->out->count].value[MAX_VAL_LEN - 1] = '\0';
+    s->out->count++;
+    return 0;
 }
 
 /* On the second occurrence of an element at depth d, rename all stored entries
@@ -66,7 +72,6 @@ static void retroactive_reindex(XmlMap *map, ParseState *s, int d)
     s->path_index[d] = saved;
 
     int old_len = (int)strlen(old_prefix);
-    (void)strlen(new_prefix);
 
     for (int i = 0; i < map->count; i++) {
         char *key = map->entries[i].key;
@@ -79,8 +84,7 @@ static void retroactive_reindex(XmlMap *map, ParseState *s, int d)
             continue;
 
         char new_key[MAX_KEY_LEN];
-        int suffix_off = old_len;
-        int w = snprintf(new_key, sizeof(new_key), "%s%s", new_prefix, key + suffix_off);
+        int w = snprintf(new_key, sizeof(new_key), "%s%s", new_prefix, key + old_len);
         if (w > 0 && w < MAX_KEY_LEN)
             strcpy(key, new_key);
     }
@@ -115,13 +119,12 @@ static void start_handler(void *data, const XML_Char *name, const XML_Char **att
     s->path_stack[d][MAX_KEY_LEN - 1] = '\0';
     s->depth++;
 
-    /* Store attributes as <current.path>.@attrname */
     for (int i = 0; attrs[i]; i += 2) {
         char attr_key[MAX_KEY_LEN];
         build_dotted_key(s, s->depth, attr_key);
         int pos = (int)strlen(attr_key);
         snprintf(attr_key + pos, (size_t)(MAX_KEY_LEN - 1 - pos), ".@%s", attrs[i]);
-        store_entry(s->out, attr_key, attrs[i + 1]);
+        store_entry(s, attr_key, attrs[i + 1]);
     }
 
     s->text_len = 0;
@@ -164,7 +167,7 @@ static void end_handler(void *data, const XML_Char *name)
         memcpy(value, start, val_len);
         value[val_len] = '\0';
 
-        store_entry(s->out, full_key, value);
+        store_entry(s, full_key, value);
     }
 
     s->depth--;
@@ -172,27 +175,24 @@ static void end_handler(void *data, const XML_Char *name)
     s->text_buf[0] = '\0';
 }
 
-int parse(const char *filepath, XmlMap *out) {
-    if (filepath == NULL || out == NULL) {
-        fprintf(stderr, "Invalid arguments to parse()\n");
-        return 0;
-    }
+XmlStatus parse(const char *filepath, XmlMap *out) {
+    if (filepath == NULL || out == NULL)
+        return XML_ERR_ARGS;
 
     FILE *input = fopen(filepath, "rb");
-    if (input == NULL) {
-        fprintf(stderr, "Failed to open file: %s\n", filepath);
-        return 0;
-    }
+    if (input == NULL)
+        return XML_ERR_IO;
 
     XML_Parser p = XML_ParserCreate(NULL);
     if (p == NULL) {
-        fprintf(stderr, "Failed to create XML parser\n");
         fclose(input);
-        return 0;
+        return XML_ERR_IO;
     }
 
     ParseState state = {0};
     state.out = out;
+    state.effective_capacity = (out->capacity > 0 && out->capacity <= MAX_ENTRIES)
+                               ? out->capacity : MAX_ENTRIES;
     for (int i = 0; i < MAX_DEPTH; i++)
         state.path_index[i] = -1;
 
@@ -203,7 +203,7 @@ int parse(const char *filepath, XmlMap *out) {
 
     char buf[4096];
     size_t bytes_read;
-    int ok = 1;
+    XmlStatus status = XML_OK;
 
     while ((bytes_read = fread(buf, 1, sizeof(buf), input)) > 0) {
         int is_final = feof(input);
@@ -211,14 +211,18 @@ int parse(const char *filepath, XmlMap *out) {
             fprintf(stderr, "XML parse error: %s at line %lu\n",
                     XML_ErrorString(XML_GetErrorCode(p)),
                     (unsigned long)XML_GetCurrentLineNumber(p));
-            ok = 0;
+            status = XML_ERR_PARSE;
             break;
         }
     }
 
     XML_ParserFree(p);
     fclose(input);
-    return ok;
+
+    if (status == XML_OK && state.overflow)
+        status = XML_ERR_OVERFLOW;
+
+    return status;
 }
 
 const char *xml_get(const XmlMap *map, const char *key) {

@@ -176,7 +176,7 @@ static void end_handler(void *data, const XML_Char *name)
 }
 
 XmlStatus parse(const char *filepath, XmlMap *out) {
-    if (filepath == NULL || out == NULL)
+    if (filepath == NULL || out == NULL || out->entries == NULL || out->capacity <= 0)
         return XML_ERR_ARGS;
 
     FILE *input = fopen(filepath, "rb");
@@ -191,8 +191,7 @@ XmlStatus parse(const char *filepath, XmlMap *out) {
 
     ParseState state = {0};
     state.out = out;
-    state.effective_capacity = (out->capacity > 0 && out->capacity <= MAX_ENTRIES)
-                               ? out->capacity : MAX_ENTRIES;
+    state.effective_capacity = out->capacity;
     for (int i = 0; i < MAX_DEPTH; i++)
         state.path_index[i] = -1;
 
@@ -231,4 +230,24 @@ const char *xml_get(const XmlMap *map, const char *key) {
             return map->entries[i].value;
     }
     return NULL;
+}
+
+int xml_count(const XmlMap *map, const char *prefix) {
+    char key[MAX_KEY_LEN];
+    int n = 0;
+    while (1) {
+        int klen = snprintf(key, sizeof(key), "%s[%d]", prefix, n);
+        bool found = false;
+        for (int i = 0; i < map->count; i++) {
+            const char *k = map->entries[i].key;
+            if (strcmp(k, key) == 0 ||
+                (strncmp(k, key, (size_t)klen) == 0 && k[klen] == '.')) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) break;
+        n++;
+    }
+    return n;
 }

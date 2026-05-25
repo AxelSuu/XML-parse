@@ -19,13 +19,23 @@ typedef struct {
     char value[MAX_VAL_LEN];
 } XmlEntry;
 
+/* Caller provides the entries buffer; XmlMap itself is just 16 bytes.
+ * Use XML_MAP() to declare both in one line, or manage storage manually
+ * for static/heap allocation. */
 typedef struct {
-    int      capacity;           /* max entries to use; 0 = MAX_ENTRIES */
-    int      count;
-    XmlEntry entries[MAX_ENTRIES];
+    XmlEntry *entries;
+    int       capacity;
+    int       count;
 } XmlMap;
+
+/* Declares a local XmlEntry buffer and an XmlMap pointing to it.
+ * Example: XML_MAP(map, MAX_ENTRIES); */
+#define XML_MAP(name, cap) \
+    XmlEntry name##_buf_[(cap)]; \
+    XmlMap name = { name##_buf_, (cap), 0 }
 
 XmlStatus   parse(const char *filepath, XmlMap *out);
 const char *xml_get(const XmlMap *map, const char *key);
+int         xml_count(const XmlMap *map, const char *prefix);
 
 #endif /* PARSER_H */

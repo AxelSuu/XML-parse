@@ -11,9 +11,9 @@ int main(int argc, char* argv[]){
 
     struct timespec t0, t1;
 
-    XmlMap map = {0};
+    XML_MAP(map, MAX_ENTRIES);
     clock_gettime(CLOCK_MONOTONIC, &t0);
-    if (!parse(argv[1], &map)) {
+    if (parse(argv[1], &map) != XML_OK) {
         fprintf(stderr, "Parse failed\n");
         return 1;
     }
